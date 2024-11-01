@@ -67,6 +67,23 @@ def filterData(rawData, date, wmType):
         filteredData = rawData[(rawData['Expiry'] == date) & (rawData['CID'].str.startswith('SPX2'))]
     return filteredData
 
+# subAConstructor
+def subAConstructor(strikes, strikeLen, isCall):
+    A = np.zeros((strikeLen, strikeLen))
+    for j, K_j in enumerate(strikes):
+        row = []
+        for i, K_i in enumerate(strikes):
+            if(isCall == 1):
+                longPayoff = max(K_j - K_i, 0)
+            else:
+                longPayoff = max(K_i - K_j, 0)
+
+            # append payoff to row
+            row.extend([longPayoff])
+        # set row
+        A[j] = row
+    return A
+
 # lpArbSolver
 def lpArbSolver(filteredData):
     # bid, ask for both call and puts
@@ -87,34 +104,43 @@ def lpArbSolver(filteredData):
     c = []
     
     # populate objective
-    for i in range(m):
+    for i in range(len(xca)):
         c.append(-xca[i])
+    for i in range(len(xcb)):
         c.append(xcb[i])
+    for i in range(len(xpa)):
         c.append(-xpa[i])
+    for i in range(len(xpb)):
         c.append(xpb[i])
 
     c = np.array(c)
     print(c)
 
-    # initialize A matrix
-    A = np.zeros((n, numVars))
+    #construct sub matices
+    z = np.zeros(numVars)
+    print(z)
+    o = np.zeros(numVars)
+    for i in range(numVars):
+        o[i] = 1
+    print(o)
+    Alc = subAConstructor(strikes, n, 1)
+    Asc = -Alc
+    Alp = subAConstructor(strikes, n, 0)
+    Asp = -Alp
+    Aint1 = np.concatenate((Alc, Asc, Alp, Asp), axis=1)
+    print(Aint1)
+    print(len(Aint1[0]))
 
-    # populate A Matrix
-    for j, K_j in enumerate(strikes):
-        row = []
-        for i, K_i in enumerate(strikes):
-            lcPayoff = max(K_j - K_i, 0)
-            scPayoff = -max(K_j - K_i, 0)
-            lpPayoff = max(K_i - K_j, 0)
-            spPayoff = -max(K_i - K_j, 0)
-
-            # append payoff to row
-            row.extend([lcPayoff, scPayoff, lpPayoff, spPayoff])
-        # set row
-        A[j] = row
+    # construct A
+    A = np.vstack((z, Aint1, o))
+    print(Alc)
+    print(Asc)
+    print(Alp)
+    print(Asp)
+    print(A)
 
     # create b
-    b = np.zeros(len(strikes))
+    b = np.zeros(len(strikes) + 2)
 
     result = linprog(c, A_ub=A, b_ub=b, bounds=(-1000, None), method='highs')
     if result.success:
