@@ -68,19 +68,69 @@ def filterData(rawData, date, wmType):
     return filteredData
 
 # lpArbSolver
-def lpArbSolver():
-    return -1
+def lpArbSolver(filteredData):
+    # bid, ask for both call and puts
+    xca = filteredData['CAsk'].to_numpy()
+    xcb = filteredData['CBid'].to_numpy()
+    xpa = filteredData['PAsk'].to_numpy()
+    xpb = filteredData['PBid'].to_numpy()
 
-# checkArbitrage
-def checkArbitrage():
+    # strike prices
+    strikes = filteredData['Strike'].to_numpy()
+
+    # number of variables
+    n = len(strikes)
+    numVars = 4 * n
+    m = len(xca)
+
+    # initialize objective
+    c = []
+    
+    # populate objective
+    for i in range(m):
+        c.append(xca[i])
+        c.append(-xcb[i])
+        c.append(xpa[i])
+        c.append(-xpb[i])
+
+    c = np.array(c)
+    print(c)
+
+    # initialize A matrix
+    A = np.zeros((n, numVars))
+
+    # populate A Matrix
+    for j, K_j in enumerate(strikes):
+        row = []
+        for i, K_i in enumerate(strikes):
+            lcPayoff = max(K_j - K_i, 0)
+            scPayoff = -max(K_j - K_i, 0)
+            lpPayoff = max(K_i - K_j, 0)
+            spPayoff = -max(K_i - K_j, 0)
+
+            # append payoff to row
+            row.extend([lcPayoff, scPayoff, lpPayoff, spPayoff])
+        # set row
+        A[j] = row
+
+    # create b
+    b = np.zeros(len(strikes))
+
+    result = linprog(c, A_ub=A, b_ub=b, bounds=(None, None), method='highs')
+    if result.success:
+        print("Optimization successful. Portfolio structure:", result.x)
+        print("Minimum cost:", result.fun)
+    else:
+        print("Optimization failed:", result.message)
+
     return -1
 
 # arbitrageDetection
 def arbitrageDetection(date, wmType, filePath):
     rawData = loadData(filePath)
-    print(rawData)
     filteredData = filterData(rawData, date, wmType)
     print(filteredData)
+    result = lpArbSolver(filteredData)
     return -1
 
 # posExitOptimize
