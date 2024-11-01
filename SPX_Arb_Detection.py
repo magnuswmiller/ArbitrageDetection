@@ -88,10 +88,10 @@ def lpArbSolver(filteredData):
     
     # populate objective
     for i in range(m):
-        c.append(xca[i])
-        c.append(-xcb[i])
-        c.append(xpa[i])
-        c.append(-xpb[i])
+        c.append(-xca[i])
+        c.append(xcb[i])
+        c.append(-xpa[i])
+        c.append(xpb[i])
 
     c = np.array(c)
     print(c)
@@ -116,7 +116,7 @@ def lpArbSolver(filteredData):
     # create b
     b = np.zeros(len(strikes))
 
-    result = linprog(c, A_ub=A, b_ub=b, bounds=(None, None), method='highs')
+    result = linprog(c, A_ub=A, b_ub=b, bounds=(-1000, None), method='highs')
     if result.success:
         print("Optimization successful. Portfolio structure:", result.x)
         print("Minimum cost:", result.fun)
