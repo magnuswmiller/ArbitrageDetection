@@ -47,6 +47,20 @@ def loadData(filePath):
 
 # filter data
 def filterData(rawData, date, wmType):
+    rawData = rawData.drop(columns=['CLast',
+                                    'CNet',
+                                    'CVol',
+                                    'CIV',
+                                    'CDelta',
+                                    'CGamma',
+                                    'COpenInt',
+                                    'PLast',
+                                    'PNet',
+                                    'PVol',
+                                    'PIV',
+                                    'PDelta',
+                                    'PGamma',
+                                    'POpenInt'])
     if(wmType == 'w'):
         filteredData = rawData[(rawData['Expiry'] == date) & (rawData['CID'].str.contains('W'))]
     else:
