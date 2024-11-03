@@ -138,11 +138,13 @@ def lpArbSolver(filteredData):
     print(Alp)
     print(Asp)
     print(A)
+    DF = pd.DataFrame(A) 
+    DF.to_csv("data1.csv")
 
     # create b
     b = np.zeros(len(strikes) + 2)
 
-    result = linprog(c, A_ub=A, b_ub=b, bounds=(-1000, None), method='highs')
+    result = linprog(c, A_ub=A, b_ub=b, bounds=(0, 1000), method='highs')
     if result.success:
         print("Optimization successful. Portfolio structure:", result.x)
         print("Minimum cost:", result.fun)
