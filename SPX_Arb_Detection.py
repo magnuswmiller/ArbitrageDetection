@@ -105,25 +105,29 @@ def lpArbSolver(filteredData):
     
     # populate objective
     for i in range(len(xca)):
-        c.append(-xca[i])
+        c.append(xca[i])
     for i in range(len(xcb)):
-        c.append(xcb[i])
+        c.append(-xcb[i])
     for i in range(len(xpa)):
-        c.append(-xpa[i])
+        c.append(xpa[i])
     for i in range(len(xpb)):
-        c.append(xpb[i])
+        c.append(-xpb[i])
 
     c = np.array(c)
     print(c)
 
     #construct sub matices
     z = np.zeros(numVars)
-    for i in range(numVars//2):
-        z[(numVars//2)+i] = 1
+    for i in range(numVars//4):
+        z[(numVars//2)+i] = -1
+    for i in range(numVars//4):
+        z[(numVars//2)+(numVars//4)+i] = 1
     print(z)
     o = np.zeros(numVars)
-    for i in range(numVars//2):
+    for i in range(numVars//4):
         o[i] = 1
+    for i in range(numVars//4):
+        o[(numVars//4)+i] = -1
     print(o)
     Alc = subAConstructor(strikes, n, 1)
     Asc = -Alc
@@ -145,8 +149,9 @@ def lpArbSolver(filteredData):
 
     # create b
     b = np.zeros(len(strikes) + 2)
+    b[len(strikes) + 1] = 1
 
-    result = linprog(c, A_ub=-A, b_ub=b, bounds=(0, 1000), method='highs')
+    result = linprog(c, A_ub=-A, b_ub=b, bounds=(0, 100), method='highs')
     if result.success:
         print("Optimization successful. Portfolio structure:", result.x)
         print("Minimum cost:", result.fun)
@@ -165,6 +170,9 @@ def arbitrageDetection(date, wmType, filePath):
 
 # posExitOptimize
 def positionExitOptimize():
+    rawData = loadData(filePath)
+    filteredData = filterData(rawData, date, wmType)
+    print(filteredData)
     return -1
 
 # main function of program
