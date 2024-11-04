@@ -118,9 +118,11 @@ def lpArbSolver(filteredData):
 
     #construct sub matices
     z = np.zeros(numVars)
+    for i in range(numVars//2):
+        z[(numVars//2)+i] = 1
     print(z)
     o = np.zeros(numVars)
-    for i in range(numVars):
+    for i in range(numVars//2):
         o[i] = 1
     print(o)
     Alc = subAConstructor(strikes, n, 1)
@@ -144,7 +146,7 @@ def lpArbSolver(filteredData):
     # create b
     b = np.zeros(len(strikes) + 2)
 
-    result = linprog(c, A_ub=A, b_ub=b, bounds=(0, 1000), method='highs')
+    result = linprog(c, A_ub=-A, b_ub=b, bounds=(0, 1000), method='highs')
     if result.success:
         print("Optimization successful. Portfolio structure:", result.x)
         print("Minimum cost:", result.fun)
@@ -183,6 +185,15 @@ def main():
         # part 2
         else:
             print("*** You have selected POSITION EXIT CALCULATOR ***")
+            filePath = input("* Please enter the file path to the option data: ")
+            wmType = input("* Are you looking at weekly or monthly options? (w/m): ")
+            date = int(input("* Please enter expiration date: (yyyymmdd) "))
+            print("* Some information is necessary to calculate the position exit.")
+            maturityDate = int(input("* What is the maturity date of your position? "))
+            isLong = int(input("* Are you short (0) or long (1) your position? (0/1): "))
+            number = int(input("* How many options do you hold? "))
+            riskFreeRate = int(input("* Please enter the risk free rate: "))
+            positionExitOptimize(date, wmType, filePath, maturityDate, isLong, number, riskFreeRate)
 
         # repeat or exit
         ans = input("Would you like to continue with another use? (y/n): ")
