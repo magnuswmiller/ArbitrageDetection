@@ -12,6 +12,7 @@ from scipy.optimize import linprog
 
 # loadData
 def loadData(filePath):
+    print("* Loading data from file...")
     data = pd.read_csv(filePath, skiprows=3)
     dataArr = data.to_numpy()
     for i in range(len(dataArr)):
@@ -43,10 +44,12 @@ def loadData(filePath):
                     "PDelta",
                     "PGamma",
                     "POpenInt"]
+    print("* Data successfully loaded.")
     return data
 
 # filter data
 def filterData(rawData, date, wmType):
+    print("* Filtering data based on option type and expiration date...")
     rawData = rawData.drop(columns=['CLast',
                                     'CNet',
                                     'CVol',
@@ -65,6 +68,7 @@ def filterData(rawData, date, wmType):
         filteredData = rawData[(rawData['Expiry'] == date) & (rawData['CID'].str.contains('W'))]
     else:
         filteredData = rawData[(rawData['Expiry'] == date) & (rawData['CID'].str.startswith('SPX2'))]
+    print("* Data filtering successful.")
     return filteredData
 
 # subAConstructor
@@ -100,6 +104,8 @@ def lpArbSolver(filteredData):
     numVars = 4 * n
     m = len(xca)
 
+    print("* Constructing LP...")
+    print("* Constructing c matrix")
     # initialize objective
     c = []
     
@@ -114,47 +120,57 @@ def lpArbSolver(filteredData):
         c.append(-xpb[i])
 
     c = np.array(c)
-    print(c)
+    print("* c construction successful.")
 
-    #construct sub matices
+    # construct sub matices
+    print("* Constructing A matrix...")
+    # first constraint
     z = np.zeros(numVars)
     for i in range(numVars//4):
         z[(numVars//2)+i] = -1
     for i in range(numVars//4):
         z[(numVars//2)+(numVars//4)+i] = 1
-    print(z)
+
+    # last constraint
     o = np.zeros(numVars)
     for i in range(numVars//4):
         o[i] = 1
     for i in range(numVars//4):
         o[(numVars//4)+i] = -1
-    print(o)
+    
+    # middle constraints
     Alc = subAConstructor(strikes, n, 1)
     Asc = -Alc
     Alp = subAConstructor(strikes, n, 0)
     Asp = -Alp
     Aint1 = np.concatenate((Alc, Asc, Alp, Asp), axis=1)
-    print(Aint1)
-    print(len(Aint1[0]))
 
     # construct A
     A = np.vstack((z, Aint1, o))
-    print(Alc)
-    print(Asc)
-    print(Alp)
-    print(Asp)
-    print(A)
+
+    # saving A to csv for easier debugging
     DF = pd.DataFrame(A) 
     DF.to_csv("data1.csv")
+    print("* A construction successful.")
 
     # create b
+    print("* Constructing b matrix...")
     b = np.zeros(len(strikes) + 2)
     b[len(strikes) + 1] = 1
+    print("* b construction successful.")
 
+    # running solver
+    print("* Running LP solver...")
     result = linprog(c, A_ub=-A, b_ub=b, bounds=(0, 100), method='highs')
+
+    # interpreting results
     if result.success:
-        print("Optimization successful. Portfolio structure:", result.x)
-        print("Minimum cost:", result.fun)
+        print("* Optimization successful")
+        if result.fun < 0:
+            print("*** Arbitrage Detected ***")
+            print("Minimum cost to enter: ", -result.fun)
+        else:
+            print("*** No Arbitrage Detected ***")
     else:
         print("Optimization failed:", result.message)
 
@@ -164,7 +180,6 @@ def lpArbSolver(filteredData):
 def arbitrageDetection(date, wmType, filePath):
     rawData = loadData(filePath)
     filteredData = filterData(rawData, date, wmType)
-    print(filteredData)
     result = lpArbSolver(filteredData)
     return -1
 
@@ -172,7 +187,6 @@ def arbitrageDetection(date, wmType, filePath):
 def positionExitOptimize():
     rawData = loadData(filePath)
     filteredData = filterData(rawData, date, wmType)
-    print(filteredData)
     return -1
 
 # main function of program
