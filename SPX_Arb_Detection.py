@@ -181,6 +181,15 @@ def findCurPos(isLong, isCall, strike, numVars):
             curPos = (numVars // 2) + (numVars // 4) + strike
     return curPos 
 
+def writeBounds(curPos, numVars, weight):
+    bounds = []
+    for i in range(numVars):
+        tempBound = [0,weight]
+        if(i == curPos):
+            tempBound = [weight, weight]
+        bounds.append(tempBound)
+    return bounds
+
 # lpArbSolver
 def lpArbSolver(filteredData):
     c = constructC(filteredData)
@@ -267,6 +276,10 @@ def positionExitOptimize(date, wmType, filePath, isLong, isCall, strike, weight,
             strikeIndex += 1
     curPos = findCurPos(isLong, isCall, strikeIndex, numVars)
     print(curPos)
+
+    # write bounds
+    bounds = writeBounds(curPos, numVars, weight)
+    print(bounds)
     
     return -1
 
