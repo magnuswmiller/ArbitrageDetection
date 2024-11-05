@@ -1,6 +1,5 @@
 # S&P 500 Options Arbitrage Detector
 # Requirements When Running:
-# - 
 
 # Required Libraries and Versions:
 # python -v 3.12.6
@@ -227,7 +226,6 @@ def lpExitSolver(A, b, c, bounds, strikeIndex, strikes):
     result = linprog(c, A_eq=A, b_eq=b, bounds=bounds, method='highs')
     if result.success:
         print("* Optimization successful")
-        print(result.x)
         for i in range(len(result.x)):
             if(i != strikeIndex):
                 if(i < (len(result.x)-2)//4):
