@@ -221,33 +221,45 @@ def arbitrageDetection(ed, wmType, filePath):
     result = lpArbSolver(A, b, c)
     return -1
 
-def lpExitSolver(A, b, c, bounds):
+def lpExitSolver(A, b, c, bounds, strikeIndex, strikes):
     # running solver
     print("* Running LP exit solver...")
     result = linprog(c, A_eq=A, b_eq=b, bounds=bounds, method='highs')
     if result.success:
         print("* Optimization successful")
         print(result.x)
-        print(result.fun)
+        for i in range(len(result.x)):
+            if(i != strikeIndex):
+                if(i < (len(result.x)-2)//4):
+                    if(result.x[i] > 0):
+                        print("Long ", result.x[i], " calls at strike ", strikes[i%len(strikes)])
+                elif(i < (len(result.x)-2)//2):
+                    if(result.x[i] > 0):
+                        print("Short ", result.x[i], " calls at strike ", strikes[i%len(strikes)])
+                elif(i < (((len(result.x)-2)//2)+((len(result.x)-2)//4))):
+                    if(result.x[i] > 0):
+                        print("Long ", result.x[i], " puts at strike ", strikes[i%len(strikes)])
+                elif(i < (len(result.x)-2)):
+                    if(result.x[i] > 0):
+                        print("Short ", result.x[i], " puts at strike ", strikes[i%len(strikes)])
+                elif(i < (len(result.x)-1)):
+                    if(result.x[i] > 0):
+                        print("Sell ", result.x[i], " zero coupon bonds.")
+                else:
+                    if(result.x[i] > 0):
+                        print("Buy ", result.x[i], " zero coupon bonds.")
+                
+        print("Minimum cost to exit: ", result.fun)
     else:
         print("* Optimization failed: ", result.message)
     return -1
 
 # posExitOptimize
 def positionExitOptimize(sd, ed, wmType, filePath, isLong, isCall, strike, weight, riskFreeRate):
-    print(ed)
-    print(wmType)
-    print(filePath)
-    print(weight)
-    print(riskFreeRate)
-    
     # load and filter data set
     rawData = loadData(filePath)
     filteredData = filterData(rawData, ed, wmType)
     numStrikes = len(filteredData.index)
-    print(numStrikes)
-
-    print(filteredData)
 
     # construct c matrix
     c = constructC(filteredData).tolist()
@@ -255,13 +267,12 @@ def positionExitOptimize(sd, ed, wmType, filePath, isLong, isCall, strike, weigh
     settlementDate = date.fromisoformat(str(sd))
     expiryDate = date.fromisoformat(str(ed))
     timeDelta = (expiryDate - settlementDate).days
-    print(timeDelta)
+
     zcbPrice = exp(-(riskFreeRate)*timeDelta)
-    print(zcbPrice)
+
     c.append(zcbPrice)
     c.append(-zcbPrice)
     c = np.array(c)
-    print(c)
 
     # construct A matrix
     A = constructA(filteredData)
@@ -273,11 +284,9 @@ def positionExitOptimize(sd, ed, wmType, filePath, isLong, isCall, strike, weigh
             else:
                 rf[i][j] = 1
     A = np.hstack((A, rf))
-    print(A)
 
     # construct b matrix
     b = constructB(filteredData)
-    print(b)
 
     # Find current position to exit
     strikes = filteredData['Strike'].to_numpy()
@@ -289,15 +298,13 @@ def positionExitOptimize(sd, ed, wmType, filePath, isLong, isCall, strike, weigh
         else:
             strikeIndex += 1
     curPos = findCurPos(isLong, isCall, strikeIndex, numVars)
-    print(curPos)
 
     # write bounds
     bounds = writeBounds(curPos, numVars, weight)
-    print(bounds)
 
     # running solver
     A
-    result = lpExitSolver(A, b, c, bounds)
+    result = lpExitSolver(A, b, c, bounds, strikeIndex, strikes)
     
     return -1
 
