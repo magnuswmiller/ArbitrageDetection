@@ -9,6 +9,7 @@
 import pandas as pd
 import numpy as np
 from scipy.optimize import linprog
+from math import *
 
 # loadData
 def loadData(filePath):
@@ -88,39 +89,13 @@ def subAConstructor(strikes, strikeLen, isCall):
         A[j] = row
     return A
 
-# lpArbSolver
-def lpArbSolver(filteredData):
-    # bid, ask for both call and puts
-    xca = filteredData['CAsk'].to_numpy()
-    xcb = filteredData['CBid'].to_numpy()
-    xpa = filteredData['PAsk'].to_numpy()
-    xpb = filteredData['PBid'].to_numpy()
-
+def constructA(filteredData):
     # strike prices
     strikes = filteredData['Strike'].to_numpy()
 
     # number of variables
     n = len(strikes)
     numVars = 4 * n
-    m = len(xca)
-
-    print("* Constructing LP...")
-    print("* Constructing c matrix")
-    # initialize objective
-    c = []
-    
-    # populate objective
-    for i in range(len(xca)):
-        c.append(xca[i])
-    for i in range(len(xcb)):
-        c.append(-xcb[i])
-    for i in range(len(xpa)):
-        c.append(xpa[i])
-    for i in range(len(xpb)):
-        c.append(-xpb[i])
-
-    c = np.array(c)
-    print("* c construction successful.")
 
     # construct sub matices
     print("* Constructing A matrix...")
@@ -153,11 +128,64 @@ def lpArbSolver(filteredData):
     DF.to_csv("data1.csv")
     print("* A construction successful.")
 
+    return A
+
+def constructB(filteredData):
+    strikes = filteredData['Strike'].to_numpy()
+
     # create b
     print("* Constructing b matrix...")
     b = np.zeros(len(strikes) + 2)
     b[len(strikes) + 1] = 1
     print("* b construction successful.")
+
+    return b
+
+def constructC(filteredData):
+    # bid, ask for both call and puts
+    xca = filteredData['CAsk'].to_numpy()
+    xcb = filteredData['CBid'].to_numpy()
+    xpa = filteredData['PAsk'].to_numpy()
+    xpb = filteredData['PBid'].to_numpy()
+
+    print("* Constructing LP...")
+    print("* Constructing c matrix")
+    # initialize objective
+    c = []
+    
+    # populate objective
+    for i in range(len(xca)):
+        c.append(xca[i])
+    for i in range(len(xcb)):
+        c.append(-xcb[i])
+    for i in range(len(xpa)):
+        c.append(xpa[i])
+    for i in range(len(xpb)):
+        c.append(-xpb[i])
+
+    c = np.array(c)
+    print("* c construction successful.")
+    return c 
+
+def findCurPos(isLong, isCall, strike, numVars):
+    curPos = 0
+    if(isCall == 1):
+        if(isLong == 1):
+            curPos = strike
+        else:
+            curPos = (numVars // 4) + strike
+    else:
+        if(isLong == 1):
+            curPos = (numVars // 2) + strike
+        else:
+            curPos = (numVars // 2) + (numVars // 4) + strike
+    return curPos 
+
+# lpArbSolver
+def lpArbSolver(filteredData):
+    c = constructC(filteredData)
+    A = constructA(filteredData)
+    b = constructB(filteredData)
 
     # running solver
     print("* Running LP solver...")
@@ -184,9 +212,62 @@ def arbitrageDetection(date, wmType, filePath):
     return -1
 
 # posExitOptimize
-def positionExitOptimize():
+def positionExitOptimize(date, wmType, filePath, isLong, isCall, strike, weight, riskFreeRate):
+    print(date)
+    print(wmType)
+    print(filePath)
+    print(weight)
+    print(riskFreeRate)
+    
+    # load and filter data set
     rawData = loadData(filePath)
     filteredData = filterData(rawData, date, wmType)
+    numStrikes = len(filteredData.index)
+    print(numStrikes)
+
+    print(filteredData)
+
+    # construct c matrix
+    c = constructC(filteredData).tolist()
+    #TODO: figure out date difference
+    timeDelta = 2
+    zcbPrice = exp(-(riskFreeRate)*timeDelta)
+    print(zcbPrice)
+    c.append(zcbPrice)
+    c.append(-zcbPrice)
+    c = np.array(c)
+    print(c)
+
+    # construct A matrix
+    A = constructA(filteredData)
+    rf = np.zeros((numStrikes + 2, 2))
+    for i in range(numStrikes + 2):
+        for j in range(2):
+            if(j == 0):
+                rf[i][j] = -1
+            else:
+                rf[i][j] = 1
+    A = np.hstack((A, rf))
+    print(A)
+
+    # construct b matrix
+    b = constructB(filteredData).tolist()
+    b.append(0)
+    b.append(0)
+    b = np.array(b)
+
+    # Find current position to exit
+    strikes = filteredData['Strike'].to_numpy()
+    numVars = (numStrikes * 4)
+    strikeIndex = 0
+    for i in range(numStrikes):
+        if(strikes[i] == strike):
+            break
+        else:
+            strikeIndex += 1
+    curPos = findCurPos(isLong, isCall, strikeIndex, numVars)
+    print(curPos)
+    
     return -1
 
 # main function of program
@@ -211,11 +292,12 @@ def main():
             wmType = input("* Are you looking at weekly or monthly options? (w/m): ")
             date = int(input("* Please enter expiration date: (yyyymmdd) "))
             print("* Some information is necessary to calculate the position exit.")
-            maturityDate = int(input("* What is the maturity date of your position? "))
             isLong = int(input("* Are you short (0) or long (1) your position? (0/1): "))
-            number = int(input("* How many options do you hold? "))
-            riskFreeRate = int(input("* Please enter the risk free rate: "))
-            positionExitOptimize(date, wmType, filePath, maturityDate, isLong, number, riskFreeRate)
+            isCall = int(input("* Are you in a put (0) or call (1) position? (0/1) "))
+            strike = int(input("* What is the strike of your position? "))
+            weight = int(input("* How many options do you hold? "))
+            riskFreeRate = float(input("* Please enter the risk free rate: "))
+            positionExitOptimize(date, wmType, filePath, isLong, isCall, strike, weight, riskFreeRate)
 
         # repeat or exit
         ans = input("Would you like to continue with another use? (y/n): ")
