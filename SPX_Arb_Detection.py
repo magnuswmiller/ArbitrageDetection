@@ -10,6 +10,8 @@ import pandas as pd
 import numpy as np
 from scipy.optimize import linprog
 from math import *
+from datetime import date
+from datetime import timedelta
 
 # loadData
 def loadData(filePath):
@@ -49,7 +51,7 @@ def loadData(filePath):
     return data
 
 # filter data
-def filterData(rawData, date, wmType):
+def filterData(rawData, ed, wmType):
     print("* Filtering data based on option type and expiration date...")
     rawData = rawData.drop(columns=['CLast',
                                     'CNet',
@@ -66,9 +68,9 @@ def filterData(rawData, date, wmType):
                                     'PGamma',
                                     'POpenInt'])
     if(wmType == 'w'):
-        filteredData = rawData[(rawData['Expiry'] == date) & (rawData['CID'].str.contains('W'))]
+        filteredData = rawData[(rawData['Expiry'] == ed) & (rawData['CID'].str.contains('W'))]
     else:
-        filteredData = rawData[(rawData['Expiry'] == date) & (rawData['CID'].str.startswith('SPX2'))]
+        filteredData = rawData[(rawData['Expiry'] == ed) & (rawData['CID'].str.startswith('SPX2'))]
     print("* Data filtering successful.")
     return filteredData
 
@@ -183,21 +185,17 @@ def findCurPos(isLong, isCall, strike, numVars):
 
 def writeBounds(curPos, numVars, weight):
     bounds = []
-    for i in range(numVars):
-        tempBound = [0,weight]
+    for i in range(numVars + 2):
+        tempBound = (0,weight)
         if(i == curPos):
-            tempBound = [weight, weight]
+            tempBound = (weight, weight)
         bounds.append(tempBound)
     return bounds
 
 # lpArbSolver
-def lpArbSolver(filteredData):
-    c = constructC(filteredData)
-    A = constructA(filteredData)
-    b = constructB(filteredData)
-
+def lpArbSolver(A, b, c):
     # running solver
-    print("* Running LP solver...")
+    print("* Running LP arbitrage solver...")
     result = linprog(c, A_ub=-A, b_ub=b, bounds=(0, 100), method='highs')
 
     # interpreting results
@@ -209,20 +207,35 @@ def lpArbSolver(filteredData):
         else:
             print("*** No Arbitrage Detected ***")
     else:
-        print("Optimization failed:", result.message)
+        print("* Optimization failed: ", result.message)
 
     return -1
 
 # arbitrageDetection
-def arbitrageDetection(date, wmType, filePath):
+def arbitrageDetection(ed, wmType, filePath):
     rawData = loadData(filePath)
-    filteredData = filterData(rawData, date, wmType)
-    result = lpArbSolver(filteredData)
+    filteredData = filterData(rawData, ed, wmType)
+    c = constructC(filteredData)
+    A = constructA(filteredData)
+    b = constructB(filteredData)
+    result = lpArbSolver(A, b, c)
+    return -1
+
+def lpExitSolver(A, b, c, bounds):
+    # running solver
+    print("* Running LP exit solver...")
+    result = linprog(c, A_eq=A, b_eq=b, bounds=bounds, method='highs')
+    if result.success:
+        print("* Optimization successful")
+        print(result.x)
+        print(result.fun)
+    else:
+        print("* Optimization failed: ", result.message)
     return -1
 
 # posExitOptimize
-def positionExitOptimize(date, wmType, filePath, isLong, isCall, strike, weight, riskFreeRate):
-    print(date)
+def positionExitOptimize(sd, ed, wmType, filePath, isLong, isCall, strike, weight, riskFreeRate):
+    print(ed)
     print(wmType)
     print(filePath)
     print(weight)
@@ -230,7 +243,7 @@ def positionExitOptimize(date, wmType, filePath, isLong, isCall, strike, weight,
     
     # load and filter data set
     rawData = loadData(filePath)
-    filteredData = filterData(rawData, date, wmType)
+    filteredData = filterData(rawData, ed, wmType)
     numStrikes = len(filteredData.index)
     print(numStrikes)
 
@@ -239,7 +252,10 @@ def positionExitOptimize(date, wmType, filePath, isLong, isCall, strike, weight,
     # construct c matrix
     c = constructC(filteredData).tolist()
     #TODO: figure out date difference
-    timeDelta = 2
+    settlementDate = date.fromisoformat(str(sd))
+    expiryDate = date.fromisoformat(str(ed))
+    timeDelta = (expiryDate - settlementDate).days
+    print(timeDelta)
     zcbPrice = exp(-(riskFreeRate)*timeDelta)
     print(zcbPrice)
     c.append(zcbPrice)
@@ -260,10 +276,8 @@ def positionExitOptimize(date, wmType, filePath, isLong, isCall, strike, weight,
     print(A)
 
     # construct b matrix
-    b = constructB(filteredData).tolist()
-    b.append(0)
-    b.append(0)
-    b = np.array(b)
+    b = constructB(filteredData)
+    print(b)
 
     # Find current position to exit
     strikes = filteredData['Strike'].to_numpy()
@@ -280,6 +294,10 @@ def positionExitOptimize(date, wmType, filePath, isLong, isCall, strike, weight,
     # write bounds
     bounds = writeBounds(curPos, numVars, weight)
     print(bounds)
+
+    # running solver
+    A
+    result = lpExitSolver(A, b, c, bounds)
     
     return -1
 
@@ -296,21 +314,22 @@ def main():
             print("*** You have selected ARBITRAGE DETECTION ***")
             filePath = input("* Please enter the file path to the option data: ")
             wmType = input("* Are you looking at weekly or monthly options? (w/m): ")
-            date = int(input("* Please enter expiration date: (yyyymmdd) "))
-            arbitrageDetection(date, wmType, filePath)
+            ed = int(input("* Please enter expiration date: (yyyymmdd) "))
+            arbitrageDetection(ed, wmType, filePath)
         # part 2
         else:
             print("*** You have selected POSITION EXIT CALCULATOR ***")
             filePath = input("* Please enter the file path to the option data: ")
             wmType = input("* Are you looking at weekly or monthly options? (w/m): ")
-            date = int(input("* Please enter expiration date: (yyyymmdd) "))
+            sd = int(input("* Please enter settlement date/pricing date: (yyyymmdd) "))
+            ed = int(input("* Please enter expiration date: (yyyymmdd) "))
             print("* Some information is necessary to calculate the position exit.")
             isLong = int(input("* Are you short (0) or long (1) your position? (0/1): "))
             isCall = int(input("* Are you in a put (0) or call (1) position? (0/1) "))
             strike = int(input("* What is the strike of your position? "))
             weight = int(input("* How many options do you hold? "))
             riskFreeRate = float(input("* Please enter the risk free rate: "))
-            positionExitOptimize(date, wmType, filePath, isLong, isCall, strike, weight, riskFreeRate)
+            positionExitOptimize(sd, ed, wmType, filePath, isLong, isCall, strike, weight, riskFreeRate)
 
         # repeat or exit
         ans = input("Would you like to continue with another use? (y/n): ")
