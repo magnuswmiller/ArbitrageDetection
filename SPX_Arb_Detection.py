@@ -103,9 +103,9 @@ def constructA(filteredData):
     # first constraint
     z = np.zeros(numVars)
     for i in range(numVars//4):
-        z[(numVars//2)+i] = -1
+        z[(numVars//2)+i] = strikes[i]
     for i in range(numVars//4):
-        z[(numVars//2)+(numVars//4)+i] = 1
+        z[(numVars//2)+(numVars//4)+i] = -strikes[i] 
 
     # last constraint
     o = np.zeros(numVars)
@@ -137,7 +137,7 @@ def constructB(filteredData):
     # create b
     print("* Constructing b matrix...")
     b = np.zeros(len(strikes) + 2)
-    b[len(strikes) + 1] = 1
+    b[len(strikes) + 1] = 0
     print("* b construction successful.")
 
     return b
@@ -203,6 +203,7 @@ def lpArbSolver(A, b, c):
         if result.fun < 0:
             print("*** Arbitrage Detected ***")
             print("Minimum cost to enter: ", -result.fun)
+            print(result.x)
         else:
             print("*** No Arbitrage Detected ***")
     else:
