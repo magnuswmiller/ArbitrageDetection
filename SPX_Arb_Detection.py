@@ -184,10 +184,12 @@ def findCurPos(isLong, isCall, strike, numVars):
 
 def writeBounds(curPos, numVars, weight):
     bounds = []
-    for i in range(numVars + 2):
-        tempBound = (0,weight)
+    for i in range(numVars + 1):
+        tempBound = (0,1000000)
         if(i == curPos):
             tempBound = (weight, weight)
+        if(i == numVars):
+            tempBound = (-1000000,1000000)
         bounds.append(tempBound)
     return bounds
 
@@ -230,23 +232,25 @@ def lpExitSolver(A, b, c, bounds, strikeIndex, strikes):
         for i in range(len(result.x)):
             if(i != strikeIndex):
                 if(i < (len(result.x)-2)//4):
-                    if(result.x[i] > 0):
+                    if(result.x[i] > 0.05):
                         print("Long ", result.x[i], " calls at strike ", strikes[i%len(strikes)])
                 elif(i < (len(result.x)-2)//2):
-                    if(result.x[i] > 0):
+                    if(result.x[i] > 0.05):
                         print("Short ", result.x[i], " calls at strike ", strikes[i%len(strikes)])
                 elif(i < (((len(result.x)-2)//2)+((len(result.x)-2)//4))):
-                    if(result.x[i] > 0):
+                    if(result.x[i] > 0.05):
                         print("Long ", result.x[i], " puts at strike ", strikes[i%len(strikes)])
                 elif(i < (len(result.x)-2)):
-                    if(result.x[i] > 0):
+                    if(result.x[i] > 0.05):
                         print("Short ", result.x[i], " puts at strike ", strikes[i%len(strikes)])
                 elif(i < (len(result.x)-1)):
-                    if(result.x[i] > 0):
+                    if(result.x[i] > 0.05):
                         print("Sell ", result.x[i], " zero coupon bonds.")
                 else:
                     if(result.x[i] > 0):
                         print("Buy ", result.x[i], " zero coupon bonds.")
+                    else:
+                        print("Sell", result.x[i], " zero coupon bonds.")
                 
         print("Minimum cost to exit: ", result.fun)
     else:
@@ -265,24 +269,27 @@ def positionExitOptimize(sd, ed, wmType, filePath, isLong, isCall, strike, weigh
     #TODO: figure out date difference
     settlementDate = date.fromisoformat(str(sd))
     expiryDate = date.fromisoformat(str(ed))
-    timeDelta = (expiryDate - settlementDate).days
+    timeDelta = ((expiryDate - settlementDate).days)/365
 
     zcbPrice = exp(-(riskFreeRate)*timeDelta)
 
     c.append(zcbPrice)
-    c.append(-zcbPrice)
     c = np.array(c)
 
     # construct A matrix
     A = constructA(filteredData)
-    rf = np.zeros((numStrikes + 2, 2))
+    rf = np.zeros((numStrikes + 2, 1))
     for i in range(numStrikes + 2):
-        for j in range(2):
+        for j in range(1):
             if(j == 0):
-                rf[i][j] = -1
-            else:
                 rf[i][j] = 1
+            if(i == numStrikes+1):
+                rf[i][j] = 0
     A = np.hstack((A, rf))
+
+    # saving A to csv for easier debugging
+    DF = pd.DataFrame(A) 
+    DF.to_csv("data2.csv")
 
     # construct b matrix
     b = constructB(filteredData)
@@ -302,7 +309,7 @@ def positionExitOptimize(sd, ed, wmType, filePath, isLong, isCall, strike, weigh
     bounds = writeBounds(curPos, numVars, weight)
 
     # running solver
-    A
+    #A
     result = lpExitSolver(A, b, c, bounds, strikeIndex, strikes)
     
     return -1
